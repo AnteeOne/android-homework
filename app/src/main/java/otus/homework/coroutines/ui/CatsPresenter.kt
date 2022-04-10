@@ -1,7 +1,6 @@
 package otus.homework.coroutines.ui
 
 import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import otus.homework.coroutines.data.network.CatsService
@@ -17,15 +16,17 @@ class CatsPresenter(
     private var catsJob: Job? = null
 
     fun onInitComplete() {
+        loadCat()
+    }
+
+    fun loadCat() {
+        if (catsJob != null) return
         catsJob = presenterScope.launch {
             try {
-//                val fact = async { catsService.getCatFact() }    parallel start, but without exception handling
-//                val cat = async { catsService.getCat() }
                 val fact = catsService.getCatFact()
                 val cat = catsService.getCat()
-                with(Dispatchers.Main) { // if someone will add dispatcher in launch coroutine starter
-                    _catsView?.populate(Pair(fact,cat))
-                }
+                _catsView?.populate(Pair(fact, cat))
+                cancelCatJob()
             } catch (e: Exception) {
                 when (e) {
                     is CancellationException -> throw e
@@ -45,10 +46,10 @@ class CatsPresenter(
 
     fun detachView() {
         _catsView = null
-        cancelJob()
+        cancelCatJob()
     }
 
-    fun cancelJob() {
+    fun cancelCatJob() {
         catsJob?.cancel()
         catsJob = null
     }

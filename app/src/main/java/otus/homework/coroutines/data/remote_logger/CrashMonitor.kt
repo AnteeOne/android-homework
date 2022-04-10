@@ -1,11 +1,13 @@
 package otus.homework.coroutines.data.remote_logger
 
+import android.util.Log
+
 object CrashMonitor {
 
     /**
      * Pretend this is Crashlytics/AppCenter
      */
     fun trackWarning(t: Throwable) {
-        // some remote logging logic
+        Log.d("anteetag", "Crash monitor: ${t.message}")
     }
 }

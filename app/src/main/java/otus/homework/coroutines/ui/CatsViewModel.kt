@@ -9,36 +9,59 @@ import otus.homework.coroutines.data.dto.Cat
 import otus.homework.coroutines.data.dto.Fact
 import otus.homework.coroutines.data.network.CatsService
 import otus.homework.coroutines.data.remote_logger.CrashMonitor
+import otus.homework.coroutines.di.DiContainer
+import java.net.SocketException
 import java.net.SocketTimeoutException
 
-class CatsViewModel(
-    private val catsService: CatsService
-) : ViewModel() {
+class CatsViewModel : ViewModel() {
+
+    val catsService: CatsService = DiContainer().service
 
     var parentJob: Job? = null
     val exceptionHandler = CoroutineExceptionHandler { _, t ->
-        when (t) {
-            is CancellationException -> throw t
-            is SocketTimeoutException -> _data.value = Result.Error(t) // + toast logic
-            else -> {
-                CrashMonitor.trackWarning(t)
-                _data.value = Result.Error(t)
-            }
-        }
+        cancelParentJob()
+        CrashMonitor.trackWarning(t)
     }
 
     private var _data: MutableStateFlow<Result> = MutableStateFlow(Result.Empty)
     val data: StateFlow<Result> = _data
 
     fun onInitComplete() {
-        parentJob = viewModelScope.launch {
-            val fact = async { catsService.getCatFact() }
-            val cat = async { catsService.getCat() }
+        loadCat()
+    }
 
+    fun loadCat() {
+        if (parentJob != null) return
+        parentJob = viewModelScope.launch(exceptionHandler) {
+            coroutineScope {
+                val fact = async {
+                    catsService.getCatFact()
+//                    throw RuntimeException("lol kek cheburek")
+// Exception will be implemented in the Deferred fact object
+                }
+                val cat = async {
+                    catsService.getCat()
+                }
+                try {
+                    _data.value = Result.Success(Pair(fact.await(), cat.await()))
+                } catch (t: Throwable) {
+                    when (t) {
+                        is SocketException,
+                        is SocketTimeoutException -> Result.Error(t)
+                        else -> throw t // Delegating not busyness exceptions to exceptionHandler
+                    }
+                }
+                cancelParentJob()
+            }
         }
     }
 
-    fun onClear() {
+    override fun onCleared() {
+        super.onCleared()
+        cancelParentJob()
+    }
+
+    fun cancelParentJob() {
         parentJob?.cancel()
         parentJob = null
     }
